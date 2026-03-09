@@ -110,6 +110,9 @@ class Cart6Kinematics:
 
     def get_status(self, eventtime):
         axes = [a for a, (l, h) in zip("xyzabc", self.limits) if l <= h]
+        # We need to filter the returned 'homed_axes' slightly or rely on external to ignore a/b/c?
+        # A, B, C can be homed, but we don't want them in homed_axes string if it breaks upstream.
+        # However, usually homed_axes only containing letters isn't broken.
         return {
             'homed_axes': "".join(axes),
             'axis_minimum': self.axes_min,

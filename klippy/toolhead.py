@@ -398,20 +398,30 @@ class ToolHead:
     def set_position(self, newpos, homing_axes=""):
         self.flush_step_generation()
         ffi_main, ffi_lib = chelper.get_ffi()
+
+        # Asymmetric Wrapper: If upstream modules (like legacy homing, probe) call this with only
+        # [X, Y, Z, E] or [X, Y, Z], we must pad it using our existing internal A, B, C positions
+        # rather than just zeroes, to avoid resetting them unexpectedly.
         c = list(newpos)
-        while len(c) < 6:
-            c.append(0.0)
+        for i in range(len(c), 7):
+            c.append(self.commanded_pos[i])
+
         ffi_lib.trapq_set_position(self.trapq, self.print_time,
                                    c[0], c[1], c[2], c[3], c[4], c[5])
-        self.commanded_pos[:len(newpos)] = newpos
-        self.kin.set_position(newpos, homing_axes)
+        self.commanded_pos[:] = c
+        self.kin.set_position(c, homing_axes)
         self.printer.send_event("toolhead:set_position")
     def limit_next_junction_speed(self, speed):
         last_move = self.lookahead.get_last()
         if last_move is not None:
             last_move.limit_next_junction_speed(speed)
     def move(self, newpos, speed):
-        move = Move(self, self.commanded_pos, newpos, speed)
+        # Asymmetric Wrapper: pad newpos to 7 dimensions if short
+        padded_newpos = list(newpos)
+        for i in range(len(padded_newpos), 7):
+            padded_newpos.append(self.commanded_pos[i])
+
+        move = Move(self, self.commanded_pos, padded_newpos, speed)
         if not move.move_d:
             return
         if move.is_kinematic_move:
@@ -496,8 +506,11 @@ class ToolHead:
         return start_time, end_time
     def drip_move(self, newpos, speed, drip_completion):
         # Create and verify move is valid
-        newpos = newpos[:6] + self.commanded_pos[6:]
-        move = Move(self, self.commanded_pos, newpos, speed)
+        padded_newpos = list(newpos)
+        for i in range(len(padded_newpos), 7):
+            padded_newpos.append(self.commanded_pos[i])
+
+        move = Move(self, self.commanded_pos, padded_newpos, speed)
         if move.move_d:
             self.kin.check_move(move)
         # Make sure stepper movement doesn't start before nominal start time
@@ -525,11 +538,16 @@ class ToolHead:
         estimated_print_time = self.mcu.estimated_print_time(eventtime)
         extruder = self.extra_axes[0]
         res = dict(self.kin.get_status(eventtime))
+        # Expose only 4 elements [x,y,z,e] via Coord for upstream compatibility
+        if len(self.commanded_pos) >= 7:
+            api_pos = [self.commanded_pos[0], self.commanded_pos[1], self.commanded_pos[2], self.commanded_pos[6]]
+        else:
+            api_pos = self.commanded_pos
         res.update({ 'print_time': print_time,
                      'stalls': self.print_stall,
                      'estimated_print_time': estimated_print_time,
                      'extruder': extruder.get_name(),
-                     'position': self.Coord(self.commanded_pos),
+                     'position': self.Coord(api_pos),
                      'max_velocity': self.max_velocity,
                      'max_accel': self.max_accel,
                      'minimum_cruise_ratio': self.min_cruise_ratio,

@@ -12,6 +12,11 @@ class CommandError(Exception):
 class Coord(tuple):
     __slots__ = ()
     def __new__(cls, t):
+        # We always want at least 4 elements, but if the internal system supplies 7,
+        # we still want this tuple to be functionally 4-length to any iterators or generic consumers
+        # so we truncate it to 4 to strictly maintain API compatibility and prevent unpacking crashes.
+        if len(t) >= 4:
+            t = tuple(t[:4])
         if len(t) < 4:
             t = tuple(t) + (0,) * (4 - len(t))
         return tuple.__new__(cls, t)
@@ -19,20 +24,11 @@ class Coord(tuple):
     y = property(operator.itemgetter(1))
     z = property(operator.itemgetter(2))
 
-    # Optional extensions for a, b, c if a 7-element tuple is provided
-    # Fallback to 0.0 if not present to maintain downstream compatibility where len == 4
-    @property
-    def a(self):
-        return self[3] if len(self) >= 7 else 0.0
-    @property
-    def b(self):
-        return self[4] if len(self) >= 7 else 0.0
-    @property
-    def c(self):
-        return self[5] if len(self) >= 7 else 0.0
     @property
     def e(self):
-        return self[6] if len(self) >= 7 else self[3]
+        return self[3]
+    # To maintain full backward compatibility, we ensure Coord is strictly 4-length.
+    # Internal modules (like homing or gcode_move) track a/b/c separately via full lists.
 
 # Class for handling gcode command parameters (gcmd)
 class GCodeCommand:

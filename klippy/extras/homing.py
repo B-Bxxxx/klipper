@@ -292,7 +292,7 @@ class PrinterHoming:
     def cmd_G28(self, gcmd):
         # Move to origin
         axes = []
-        for pos, axis in enumerate('XYZ'):
+        for pos, axis in enumerate('XYZABC'):
             if gcmd.get(axis, None) is not None:
                 axes.append(pos)
         if not axes:

@@ -25,7 +25,7 @@ class HomingOverride:
 
         # if no axis is given as parameter we assume the override
         no_axis = True
-        for axis in 'XYZ':
+        for axis in 'XYZABC':
             if gcmd.get(axis, None) is not None:
                 no_axis = False
                 break

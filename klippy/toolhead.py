@@ -16,6 +16,8 @@ class Move:
         self.toolhead = toolhead
         self.start_pos = tuple(start_pos)
         self.end_pos = tuple(end_pos)
+        assert len(self.start_pos) >= 7, "Motion planner requires at least a 7-element start_pos"
+        assert len(self.end_pos) >= 7, "Motion planner requires at least a 7-element end_pos"
         self.accel = toolhead.max_accel
         self.junction_deviation = toolhead.junction_deviation
         self.timing_callbacks = []
@@ -214,6 +216,7 @@ class ToolHead:
         self.lookahead = LookAheadQueue()
         self.lookahead.set_flush_time(BUFFER_TIME_HIGH)
         self.commanded_pos = [0., 0., 0., 0., 0., 0., 0.]
+        assert len(self.commanded_pos) >= 7, "Toolhead must initialize a 7-element commanded_pos"
         # Velocity and acceleration control
         self.max_velocity = config.getfloat('max_velocity', above=0.)
         self.max_accel = config.getfloat('max_accel', above=0.)
@@ -406,6 +409,8 @@ class ToolHead:
         for i in range(len(c), 7):
             c.append(self.commanded_pos[i])
 
+        assert len(c) >= 7, "set_position requires at least 7 elements after padding"
+
         ffi_lib.trapq_set_position(self.trapq, self.print_time,
                                    c[0], c[1], c[2], c[3], c[4], c[5])
         self.commanded_pos[:] = c
@@ -420,6 +425,8 @@ class ToolHead:
         padded_newpos = list(newpos)
         for i in range(len(padded_newpos), 7):
             padded_newpos.append(self.commanded_pos[i])
+
+        assert len(padded_newpos) >= 7, "toolhead.move requires at least 7 elements after padding"
 
         move = Move(self, self.commanded_pos, padded_newpos, speed)
         if not move.move_d:
@@ -509,6 +516,8 @@ class ToolHead:
         padded_newpos = list(newpos)
         for i in range(len(padded_newpos), 7):
             padded_newpos.append(self.commanded_pos[i])
+
+        assert len(padded_newpos) >= 7, "drip_move requires at least 7 elements after padding"
 
         move = Move(self, self.commanded_pos, padded_newpos, speed)
         if move.move_d:

@@ -62,9 +62,15 @@ class TuningTower:
         gcmd.respond_info(
             "Starting tuning test (" + " ".join(message_parts) + ")")
     def get_position(self):
-        pos = self.normal_transform.get_position()
+        if hasattr(self.normal_transform, 'get_internal_position'):
+            pos = self.normal_transform.get_internal_position()
+        else:
+            pos = self.normal_transform.get_position()
         self.last_position = list(pos)
         return pos
+
+    def get_internal_position(self):
+        return self.get_position()
     def calc_value(self, z):
         if self.skip:
             z = max(0., z - self.skip)

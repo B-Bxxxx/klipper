@@ -53,7 +53,7 @@ class HomingMove:
     def get_mcu_endstops(self):
         return [es for es, name in self.endstops]
     def _calc_endstop_rate(self, mcu_endstop, movepos, speed):
-        startpos = self.toolhead.get_position() # This returns the 4-element upstream api array! Wait, no, we should check what we need to get... wait, if `get_position` returns 4 items, but we need 7 internally?
+        startpos = self.toolhead.get_internal_position() # This returns the 4-element upstream api array! Wait, no, we should check what we need to get... wait, if `get_position` returns 4 items, but we need 7 internally?
         # Actually, let's use get_internal_position if available to avoid length mismatch.
         if hasattr(self.toolhead, 'get_internal_position'):
             startpos = self.toolhead.get_internal_position()
@@ -79,7 +79,7 @@ class HomingMove:
         for stepper in kin.get_steppers():
             sname = stepper.get_name()
             kin_spos[sname] += offsets.get(sname, 0) * stepper.get_step_dist()
-        thpos = self.toolhead.get_position()
+        thpos = self.toolhead.get_internal_position()
         if hasattr(self.toolhead, 'get_internal_position'):
             thpos = self.toolhead.get_internal_position()
         cpos = kin.calc_position(kin_spos)
@@ -190,7 +190,9 @@ class Homing:
         self.adjust_pos[stepper_name] = adjustment
     def _fill_coord(self, coord):
         # Fill in any None entries in 'coord' with current toolhead position
-        thcoord = list(self.toolhead.get_position())
+        thcoord = list(self.toolhead.get_internal_position())
+        if len(thcoord) < len(coord):
+            thcoord += [0.] * (len(coord) - len(thcoord))
         for i in range(len(coord)):
             if coord[i] is not None:
                 thcoord[i] = coord[i]
@@ -241,7 +243,7 @@ class Homing:
         if any(self.adjust_pos.values()):
             # Apply any homing offsets
             kin = self.toolhead.get_kinematics()
-            homepos = list(self.toolhead.get_position())
+            homepos = list(self.toolhead.get_internal_position())
             if hasattr(self.toolhead, 'get_internal_position'):
                 homepos = list(self.toolhead.get_internal_position())
             kin_spos = {s.get_name(): (s.get_commanded_position()

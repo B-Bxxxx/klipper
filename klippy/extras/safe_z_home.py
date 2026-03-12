@@ -35,7 +35,7 @@ class SafeZHoming:
             # Check if Z axis is homed and its last known position
             curtime = self.printer.get_reactor().monotonic()
             kin_status = toolhead.get_kinematics().get_status(curtime)
-            pos = toolhead.get_position()
+            pos = toolhead.get_internal_position()
 
             if 'z' not in kin_status['homed_axes']:
                 # Always perform the z_hop if the Z axis is not homed
@@ -75,14 +75,14 @@ class SafeZHoming:
                 'y' not in kin_status['homed_axes']):
                 raise gcmd.error("Must home X and Y axes first")
             # Move to safe XY homing position
-            prevpos = toolhead.get_position()
+            prevpos = toolhead.get_internal_position()
             toolhead.manual_move([self.home_x_pos, self.home_y_pos], self.speed)
             # Home Z
             g28_gcmd = self.gcode.create_gcode_command("G28", "G28", {'Z': '0'})
             self.prev_G28(g28_gcmd)
             # Perform Z Hop again for pressure-based probes
             if self.z_hop:
-                pos = toolhead.get_position()
+                pos = toolhead.get_internal_position()
                 if pos[2] < self.z_hop:
                     toolhead.manual_move([None, None, self.z_hop],
                                          self.z_hop_speed)

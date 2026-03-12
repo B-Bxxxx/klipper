@@ -117,19 +117,29 @@ class ZThermalAdjuster:
         return [pos[0], pos[1], unadjusted_z] + pos[3:]
 
     def get_position(self):
-        position = self.calc_unadjust(self.next_transform.get_position())
+        if hasattr(self.next_transform, 'get_internal_position'):
+            position = self.calc_unadjust(self.next_transform.get_internal_position())
+        else:
+            position = self.calc_unadjust(self.next_transform.get_position())
         self.last_position = self.calc_adjust(position)
         return position
+
+    def get_internal_position(self):
+        return self.get_position()
 
     def move(self, newpos, speed):
         # don't apply to extrude only moves or when disabled
         if (newpos[0:2] == self.last_position[0:2]) or not self.adjust_enable:
             z = newpos[2] + self.last_z_adjust_mm
-            adjusted_pos = [newpos[0], newpos[1], z, newpos[3]]
+            adjusted_pos = [newpos[0], newpos[1], z] + newpos[3:]
             self.next_transform.move(adjusted_pos, speed)
         else:
             adjusted_pos = self.calc_adjust(newpos)
             self.next_transform.move(adjusted_pos, speed)
+
+        # Ensure last_position can hold the returned position length
+        if len(self.last_position) < len(newpos):
+            self.last_position.extend([0.] * (len(newpos) - len(self.last_position)))
         self.last_position[:] = newpos
 
     def temperature_callback(self, read_time, temp):

@@ -66,7 +66,12 @@ class PrinterSkew:
         skewed_y = pos[1] + pos[2] * self.yz_factor
         return [skewed_x, skewed_y] + pos[2:]
     def get_position(self):
+        if hasattr(self.next_transform, 'get_internal_position'):
+            return self.calc_unskew(self.next_transform.get_internal_position())
         return self.calc_unskew(self.next_transform.get_position())
+
+    def get_internal_position(self):
+        return self.get_position()
     def move(self, newpos, speed):
         corrected_pos = self.calc_skew(newpos)
         self.next_transform.move(corrected_pos, speed)

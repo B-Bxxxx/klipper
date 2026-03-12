@@ -89,7 +89,10 @@ class GCodeMove:
             old_transform = self.printer.lookup_object('toolhead', None)
         self.move_transform = transform
         self.move_with_transform = transform.move
-        self.position_with_transform = transform.get_position
+        if hasattr(transform, 'get_internal_position'):
+            self.position_with_transform = transform.get_internal_position
+        else:
+            self.position_with_transform = transform.get_position
         return old_transform
     def _get_gcode_position(self):
         p = [lp - bp for lp, bp in zip(self.last_position, self.base_position)]
@@ -278,7 +281,7 @@ class GCodeMove:
         kinfo = zip("XYZ", kin.calc_position(dict(cinfo)))
         kin_pos = " ".join(["%s:%.6f" % (a, v) for a, v in kinfo])
         toolhead_pos = " ".join(["%s:%.6f" % (a, v) for a, v in zip(
-            "XYZE", toolhead.get_position()[:4])])
+            "XYZE", toolhead.get_internal_position()[:4])])
         gcode_pos = " ".join(["%s:%.6f"  % (a, v)
                               for a, v in zip("XYZE", self.last_position)])
         base_pos = " ".join(["%s:%.6f"  % (a, v)

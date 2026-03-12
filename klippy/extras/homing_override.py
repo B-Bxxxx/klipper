@@ -45,7 +45,7 @@ class HomingOverride:
 
         # Calculate forced position (if configured)
         toolhead = self.printer.lookup_object('toolhead')
-        pos = toolhead.get_position()
+        pos = toolhead.get_internal_position()
         homing_axes = ""
         for axis, loc in enumerate(self.start_pos):
             if loc is not None:

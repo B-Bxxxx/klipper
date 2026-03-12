@@ -191,7 +191,7 @@ class TemperatureProbe:
         speeds = self._get_speeds()
         lift_speed, _, move_speed = speeds
         toolhead = self.printer.lookup_object("toolhead")
-        cur_pos = toolhead.get_position()
+        cur_pos = toolhead.get_internal_position()
         # Move to probe to sample collection position
         cur_pos[2] += self.horizontal_move_z
         toolhead.manual_move(cur_pos, lift_speed)
@@ -210,7 +210,7 @@ class TemperatureProbe:
         probe_speed = self._get_speeds()[1]
         # Move tool down to the resting position
         toolhead = self.printer.lookup_object("toolhead")
-        cur_pos = toolhead.get_position()
+        cur_pos = toolhead.get_internal_position()
         cur_pos[2] = tool_zero_z + self.resting_z
         toolhead.manual_move(cur_pos, probe_speed)
         cnt, exp_cnt = self.sample_count, self.expected_count
@@ -235,7 +235,7 @@ class TemperatureProbe:
             )
         self.last_zero_pos = mpresult.bed_z
         toolhead = self.printer.lookup_object("toolhead")
-        tool_zero_z = toolhead.get_position()[2]
+        tool_zero_z = toolhead.get_internal_position()[2]
         try:
             last_temp = self._collect_sample(mpresult, tool_zero_z)
         except Exception:
@@ -323,7 +323,7 @@ class TemperatureProbe:
 
     def _move_to_start(self):
         toolhead = self.printer.lookup_object("toolhead")
-        cur_pos = toolhead.get_position()
+        cur_pos = toolhead.get_internal_position()
         move_speed = self._get_speeds()[2]
         if self.cal_pos is not None:
             if self.cal_extruder_temp is not None:
@@ -410,7 +410,7 @@ class TemperatureProbe:
             raise
         # Capture start position and begin initial probe
         toolhead = self.printer.lookup_object("toolhead")
-        self.start_pos = toolhead.get_position()[:2]
+        self.start_pos = toolhead.get_internal_position()[:2]
         manual_probe.ManualProbeHelper(
             self.printer, gcmd, self._manual_probe_finalize
         )
@@ -421,7 +421,7 @@ class TemperatureProbe:
         self.next_auto_temp = 99999999.
         toolhead = self.printer.lookup_object("toolhead")
         # Lift and Move to nozzle back to start position
-        curpos = toolhead.get_position()
+        curpos = toolhead.get_internal_position()
         start_z = curpos[2]
         lift_speed, probe_speed, move_speed = self._get_speeds()
         # Move nozzle to the manual probing position
@@ -569,7 +569,7 @@ class EddyDriftCompensation:
         temps = [0. for _ in range(DRIFT_SAMPLE_COUNT)]
         probe_samples = [[] for _ in range(DRIFT_SAMPLE_COUNT)]
         toolhead = self.printer.lookup_object("toolhead")
-        cur_pos = toolhead.get_position()
+        cur_pos = toolhead.get_internal_position()
         lift_speed, probe_speed, _ = speeds
 
         def _on_bulk_data_recd(msg):

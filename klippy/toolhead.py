@@ -69,7 +69,11 @@ class Move:
         self.next_junction_v2 = min(self.next_junction_v2, speed**2)
     def move_error(self, msg="Move out of range"):
         ep = self.end_pos
-        m = "%s: %.3f %.3f %.3f [%.3f]" % (msg, ep[0], ep[1], ep[2], ep[3])
+        # Adjust move_error to show up to 6 internal axes if present, to help debugging
+        if len(ep) >= 7:
+            m = "%s: %.3f %.3f %.3f %.3f %.3f %.3f [%.3f]" % (msg, ep[0], ep[1], ep[2], ep[3], ep[4], ep[5], ep[6])
+        else:
+            m = "%s: %.3f %.3f %.3f [%.3f]" % (msg, ep[0], ep[1], ep[2], ep[3])
         return self.toolhead.printer.command_error(m)
     def calc_junction(self, prev_move):
         if not self.is_kinematic_move or not prev_move.is_kinematic_move:

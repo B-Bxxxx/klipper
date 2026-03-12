@@ -110,7 +110,7 @@ class ProbeCommandHelper:
         # Perform initial probe
         ppos = run_single_probe(self.probe, gcmd)
         # Move away from the bed
-        curpos = self.printer.lookup_object('toolhead').get_position()
+        curpos = self.printer.lookup_object('toolhead').get_internal_position()
         curpos[2] += 5.
         self._move(curpos, params['lift_speed'])
         # Move the nozzle over the probe point
@@ -126,7 +126,7 @@ class ProbeCommandHelper:
         params = self.probe.get_probe_params(gcmd)
         sample_count = gcmd.get_int("SAMPLES", 10, minval=1)
         toolhead = self.printer.lookup_object('toolhead')
-        start_pos = toolhead.get_position()
+        start_pos = toolhead.get_internal_position()
         gcmd.respond_info("PROBE_ACCURACY at X:%.3f Y:%.3f Z:%.3f"
                           " (samples=%d retract=%.3f"
                           " speed=%.1f lift_speed=%.1f)\n"
@@ -146,7 +146,7 @@ class ProbeCommandHelper:
             probe_session.run_probe(fo_gcmd)
             probe_num += 1
             # Retract
-            lift_z = toolhead.get_position()[2] + params['sample_retract_dist']
+            lift_z = toolhead.get_internal_position()[2] + params['sample_retract_dist']
             liftpos = [start_pos[0], start_pos[1], lift_z]
             self._move(liftpos, params['lift_speed'])
         positions = probe_session.pull_probed_results()
@@ -265,7 +265,7 @@ class HomingViaProbeHelper:
         return self
     def run_probe(self, gcmd):
         toolhead = self.printer.lookup_object('toolhead')
-        pos = toolhead.get_position()
+        pos = toolhead.get_internal_position()
         pos[2] = self.z_min_position
         speed = self.param_helper.get_probe_params(gcmd)['probe_speed']
         phoming = self.printer.lookup_object('homing')
@@ -392,7 +392,7 @@ class ProbeSessionHelper:
             self._probe_state_error()
         params = self.param_helper.get_probe_params(gcmd)
         toolhead = self.printer.lookup_object('toolhead')
-        probexy = toolhead.get_position()[:2]
+        probexy = toolhead.get_internal_position()[:2]
         retries = 0
         positions = []
         sample_count = params['samples']
@@ -410,7 +410,7 @@ class ProbeSessionHelper:
                 positions = []
             # Retract
             if len(positions) < sample_count:
-                cur_z = toolhead.get_position()[2]
+                cur_z = toolhead.get_internal_position()[2]
                 toolhead.manual_move(
                     probexy + [cur_z + params['sample_retract_dist']],
                     params['lift_speed'])
@@ -587,16 +587,16 @@ class ProbeEndstopWrapper:
         self.multi = 'OFF'
     def _raise_probe(self):
         toolhead = self.printer.lookup_object('toolhead')
-        start_pos = toolhead.get_position()
+        start_pos = toolhead.get_internal_position()
         self.deactivate_gcode.run_gcode_from_command()
-        if toolhead.get_position()[:3] != start_pos[:3]:
+        if toolhead.get_internal_position()[:3] != start_pos[:3]:
             raise self.printer.command_error(
                 "Toolhead moved during probe deactivate_gcode script")
     def _lower_probe(self):
         toolhead = self.printer.lookup_object('toolhead')
-        start_pos = toolhead.get_position()
+        start_pos = toolhead.get_internal_position()
         self.activate_gcode.run_gcode_from_command()
-        if toolhead.get_position()[:3] != start_pos[:3]:
+        if toolhead.get_internal_position()[:3] != start_pos[:3]:
             raise self.printer.command_error(
                 "Toolhead moved during probe activate_gcode script")
     def multi_probe_begin(self):

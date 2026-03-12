@@ -29,7 +29,7 @@ class ZAdjustHelper:
     def adjust_steppers(self, adjustments, speed):
         toolhead = self.printer.lookup_object('toolhead')
         gcode = self.printer.lookup_object('gcode')
-        curpos = toolhead.get_position()
+        curpos = toolhead.get_internal_position()
         # Report on movements
         stepstrs = ["%s = %.6f" % (s.get_name(), a)
                     for s, a in zip(self.z_steppers, adjustments)]

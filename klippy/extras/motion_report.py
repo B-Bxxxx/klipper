@@ -241,11 +241,17 @@ class PrinterMotionReport:
                 pos, velocity = ehandler.get_trapq_position(print_time)
                 if pos is not None:
                     live_pos[ea_index] = pos[0]
-                    if ea_index == 3:
+                    # We map ea_index == 6 to Extruder if length is 7
+                    if ea_index == 3 or ea_index == 6:
                         evelocity = velocity
         # Report status
         self.last_status = dict(self.last_status)
-        self.last_status['live_position'] = toolhead.Coord(live_pos)
+        # Strip internal 6D dimensions to maintain strictly [x, y, z, e] 4D external API
+        if len(live_pos) >= 7:
+            api_live_pos = [live_pos[0], live_pos[1], live_pos[2], live_pos[6]]
+        else:
+            api_live_pos = live_pos
+        self.last_status['live_position'] = toolhead.Coord(api_live_pos)
         self.last_status['live_velocity'] = xyzvelocity
         self.last_status['live_extruder_velocity'] = evelocity
         return self.last_status

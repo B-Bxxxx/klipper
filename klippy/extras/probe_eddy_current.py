@@ -102,7 +102,7 @@ class EddyCalibration:
         max_z = 4.0
         samp_dist = 0.040
         req_zpos = [i*samp_dist for i in range(int(max_z / samp_dist) + 1)]
-        start_pos = toolhead.get_position()
+        start_pos = toolhead.get_internal_position()
         times = []
         for zpos in req_zpos:
             # Move to next position (always descending to reduce backlash)
@@ -420,7 +420,7 @@ class EddyDescend:
         return self
     def run_probe(self, gcmd):
         toolhead = self._printer.lookup_object('toolhead')
-        pos = toolhead.get_position()
+        pos = toolhead.get_internal_position()
         pos[2] = self._z_min_position
         speed = self._param_helper.get_probe_params(gcmd)['probe_speed']
         # Perform probing move
@@ -429,7 +429,7 @@ class EddyDescend:
         # Extract samples
         start_time = self._trigger_analog.get_last_trigger_time() + 0.050
         end_time = start_time + 0.100
-        toolhead_pos = toolhead.get_position()
+        toolhead_pos = toolhead.get_internal_position()
         offsets = self._probe_offsets.get_offsets()
         self._gather.add_probe_request(probe_results_from_avg,
                                        start_time, end_time,
@@ -577,7 +577,7 @@ class EddyTap:
         return self
     def run_probe(self, gcmd):
         toolhead = self._printer.lookup_object('toolhead')
-        pos = toolhead.get_position()
+        pos = toolhead.get_internal_position()
         pos[2] = self._z_min_position
         speed = self._param_helper.get_probe_params(gcmd)['probe_speed']
         move_start_time = toolhead.get_last_move_time()

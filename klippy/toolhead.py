@@ -16,19 +16,27 @@ class Move:
         self.toolhead = toolhead
         self.start_pos = tuple(start_pos)
         self.end_pos = tuple(end_pos)
+        assert len(self.start_pos) >= 7, "Motion planner requires at least a 7-element start_pos"
+        assert len(self.end_pos) >= 7, "Motion planner requires at least a 7-element end_pos"
         self.accel = toolhead.max_accel
         self.junction_deviation = toolhead.junction_deviation
         self.timing_callbacks = []
         velocity = min(speed, toolhead.max_velocity)
         self.is_kinematic_move = True
+
+        # Calculate distance over 6 spatial axes (x, y, z, a, b, c) if they exist.
+        # Ensure we always process at least 6 elements for axes_d internally.
         self.axes_d = axes_d = [ep - sp for sp, ep in zip(start_pos, end_pos)]
-        self.move_d = move_d = math.sqrt(sum([d*d for d in axes_d[:3]]))
+        while len(axes_d) < 7: # Pad up to 7 (6 axes + extruder)
+            axes_d.append(0.0)
+
+        self.move_d = move_d = math.sqrt(sum([d*d for d in axes_d[:6]]))
         if move_d < .000000001:
-            # Extrude only move
-            self.end_pos = ((start_pos[0], start_pos[1], start_pos[2])
-                            + self.end_pos[3:])
-            axes_d[0] = axes_d[1] = axes_d[2] = 0.
-            self.move_d = move_d = max([abs(ad) for ad in axes_d[3:]])
+            # Extrude only move or Extra axis only move
+            self.end_pos = ((start_pos[0], start_pos[1], start_pos[2], start_pos[3], start_pos[4], start_pos[5])
+                            + self.end_pos[6:])
+            axes_d[0] = axes_d[1] = axes_d[2] = axes_d[3] = axes_d[4] = axes_d[5] = 0.
+            self.move_d = move_d = max([abs(ad) for ad in axes_d[6:]]) if len(axes_d) > 6 else 0.
             inv_move_d = 0.
             if move_d:
                 inv_move_d = 1. / move_d
@@ -61,24 +69,31 @@ class Move:
         self.next_junction_v2 = min(self.next_junction_v2, speed**2)
     def move_error(self, msg="Move out of range"):
         ep = self.end_pos
-        m = "%s: %.3f %.3f %.3f [%.3f]" % (msg, ep[0], ep[1], ep[2], ep[3])
+        # Adjust move_error to show up to 6 internal axes if present, to help debugging
+        if len(ep) >= 7:
+            m = "%s: %.3f %.3f %.3f %.3f %.3f %.3f [%.3f]" % (msg, ep[0], ep[1], ep[2], ep[3], ep[4], ep[5], ep[6])
+        else:
+            m = "%s: %.3f %.3f %.3f [%.3f]" % (msg, ep[0], ep[1], ep[2], ep[3])
         return self.toolhead.printer.command_error(m)
     def calc_junction(self, prev_move):
         if not self.is_kinematic_move or not prev_move.is_kinematic_move:
             return
-        # Allow extra axes to calculate maximum junction
-        ea_v2 = [ea.calc_junction(prev_move, self, e_index+3)
+        # Allow extra axes to calculate maximum junction (Extruder is index 6)
+        ea_v2 = [ea.calc_junction(prev_move, self, e_index+6)
                  for e_index, ea in enumerate(self.toolhead.extra_axes)]
         max_start_v2 = min([self.max_cruise_v2,
                             prev_move.max_cruise_v2, prev_move.next_junction_v2,
                             prev_move.max_start_v2 + prev_move.delta_v2]
                            + ea_v2)
-        # Find max velocity using "approximated centripetal velocity"
+        # Find max velocity using "approximated centripetal velocity" over 6 axes
         axes_r = self.axes_r
         prev_axes_r = prev_move.axes_r
         junction_cos_theta = -(axes_r[0] * prev_axes_r[0]
                                + axes_r[1] * prev_axes_r[1]
-                               + axes_r[2] * prev_axes_r[2])
+                               + axes_r[2] * prev_axes_r[2]
+                               + axes_r[3] * prev_axes_r[3]
+                               + axes_r[4] * prev_axes_r[4]
+                               + axes_r[5] * prev_axes_r[5])
         sin_theta_d2 = math.sqrt(max(0.5*(1.0-junction_cos_theta), 0.))
         cos_theta_d2 = math.sqrt(max(0.5*(1.0+junction_cos_theta), 0.))
         one_minus_sin_theta_d2 = 1. - sin_theta_d2
@@ -204,7 +219,8 @@ class ToolHead:
         self.mcu = self.printer.lookup_object('mcu')
         self.lookahead = LookAheadQueue()
         self.lookahead.set_flush_time(BUFFER_TIME_HIGH)
-        self.commanded_pos = [0., 0., 0., 0.]
+        self.commanded_pos = [0., 0., 0., 0., 0., 0., 0.]
+        assert len(self.commanded_pos) >= 7, "Toolhead must initialize a 7-element commanded_pos"
         # Velocity and acceleration control
         self.max_velocity = config.getfloat('max_velocity', above=0.)
         self.max_accel = config.getfloat('max_accel', above=0.)
@@ -285,11 +301,13 @@ class ToolHead:
                         self.trapq, next_move_time,
                         move.accel_t, move.cruise_t, move.decel_t,
                         move.start_pos[0], move.start_pos[1], move.start_pos[2],
+                        move.start_pos[3], move.start_pos[4], move.start_pos[5],
                         move.axes_r[0], move.axes_r[1], move.axes_r[2],
+                        move.axes_r[3], move.axes_r[4], move.axes_r[5],
                         move.start_v, move.cruise_v, move.accel)
                 for e_index, ea in enumerate(self.extra_axes):
-                    if move.axes_d[e_index + 3]:
-                        ea.process_move(next_move_time, move, e_index + 3)
+                    if move.axes_d[e_index + 6]:
+                        ea.process_move(next_move_time, move, e_index + 6)
                 next_move_time = (next_move_time + move.accel_t
                                   + move.cruise_t + move.decel_t)
                 for cb in move.timing_callbacks:
@@ -379,28 +397,49 @@ class ToolHead:
                 self.reactor.pause(self.reactor.NOW)
     # Movement commands
     def get_position(self):
+        # We return a 4 element list [x, y, z, e] for upstream compatibility
+        # self.commanded_pos has 7 elements [x, y, z, a, b, c, e]
+        return [self.commanded_pos[0], self.commanded_pos[1], self.commanded_pos[2], self.commanded_pos[6]]
+    def get_internal_position(self):
         return list(self.commanded_pos)
     def set_position(self, newpos, homing_axes=""):
         self.flush_step_generation()
         ffi_main, ffi_lib = chelper.get_ffi()
+
+        # Asymmetric Wrapper: If upstream modules (like legacy homing, probe) call this with only
+        # [X, Y, Z, E] or [X, Y, Z], we must pad it using our existing internal A, B, C positions
+        # rather than just zeroes, to avoid resetting them unexpectedly.
+        c = list(newpos)
+        for i in range(len(c), 7):
+            c.append(self.commanded_pos[i])
+
+        assert len(c) >= 7, "set_position requires at least 7 elements after padding"
+
         ffi_lib.trapq_set_position(self.trapq, self.print_time,
-                                   newpos[0], newpos[1], newpos[2])
-        self.commanded_pos[:3] = newpos[:3]
-        self.kin.set_position(newpos, homing_axes)
+                                   c[0], c[1], c[2], c[3], c[4], c[5])
+        self.commanded_pos[:] = c
+        self.kin.set_position(c, homing_axes)
         self.printer.send_event("toolhead:set_position")
     def limit_next_junction_speed(self, speed):
         last_move = self.lookahead.get_last()
         if last_move is not None:
             last_move.limit_next_junction_speed(speed)
     def move(self, newpos, speed):
-        move = Move(self, self.commanded_pos, newpos, speed)
+        # Asymmetric Wrapper: pad newpos to 7 dimensions if short
+        padded_newpos = list(newpos)
+        for i in range(len(padded_newpos), 7):
+            padded_newpos.append(self.commanded_pos[i])
+
+        assert len(padded_newpos) >= 7, "toolhead.move requires at least 7 elements after padding"
+
+        move = Move(self, self.commanded_pos, padded_newpos, speed)
         if not move.move_d:
             return
         if move.is_kinematic_move:
             self.kin.check_move(move)
         for e_index, ea in enumerate(self.extra_axes):
-            if move.axes_d[e_index + 3]:
-                ea.check_move(move, e_index + 3)
+            if move.axes_d[e_index + 6]:
+                ea.check_move(move, e_index + 6)
         self.commanded_pos[:] = move.end_pos
         want_flush = self.lookahead.add_move(move)
         if want_flush:
@@ -429,12 +468,12 @@ class ToolHead:
             eventtime = self.reactor.pause(eventtime + 0.100)
     def _build_extra_axes_status(self):
         enames = [ea.get_name() for ea in self.extra_axes]
-        self.extra_axes_status = {n: e_index + 3
+        self.extra_axes_status = {n: e_index + 6
                                   for e_index, n in enumerate(enames) if n}
     def set_extruder(self, extruder, extrude_pos):
         # XXX - should use add_extra_axis
         self.extra_axes[0] = extruder
-        self.commanded_pos[3] = extrude_pos
+        self.commanded_pos[6] = extrude_pos
         self._build_extra_axes_status()
     def get_extruder(self):
         return self.extra_axes[0]
@@ -448,13 +487,13 @@ class ToolHead:
         self._flush_lookahead()
         if ea not in self.extra_axes:
             return
-        ea_index = self.extra_axes.index(ea) + 3
+        ea_index = self.extra_axes.index(ea) + 6
         self.commanded_pos.pop(ea_index)
-        self.extra_axes.pop(ea_index - 3)
+        self.extra_axes.pop(ea_index - 6)
         self._build_extra_axes_status()
         self.printer.send_event("toolhead:update_extra_axes")
     def get_extra_axes(self):
-        return [None, None, None] + self.extra_axes
+        return [None, None, None, None, None, None] + self.extra_axes
     # Homing "drip move" handling
     def _drip_load_trapq(self, submit_move):
         # Queue move into trapezoid motion queue (trapq)
@@ -469,15 +508,22 @@ class ToolHead:
                 self.trapq, end_time,
                 move.accel_t, move.cruise_t, move.decel_t,
                 move.start_pos[0], move.start_pos[1], move.start_pos[2],
+                move.start_pos[3], move.start_pos[4], move.start_pos[5],
                 move.axes_r[0], move.axes_r[1], move.axes_r[2],
+                move.axes_r[3], move.axes_r[4], move.axes_r[5],
                 move.start_v, move.cruise_v, move.accel)
             end_time = end_time + move.accel_t + move.cruise_t + move.decel_t
         self.lookahead.reset()
         return start_time, end_time
     def drip_move(self, newpos, speed, drip_completion):
         # Create and verify move is valid
-        newpos = newpos[:3] + self.commanded_pos[3:]
-        move = Move(self, self.commanded_pos, newpos, speed)
+        padded_newpos = list(newpos)
+        for i in range(len(padded_newpos), 7):
+            padded_newpos.append(self.commanded_pos[i])
+
+        assert len(padded_newpos) >= 7, "drip_move requires at least 7 elements after padding"
+
+        move = Move(self, self.commanded_pos, padded_newpos, speed)
         if move.move_d:
             self.kin.check_move(move)
         # Make sure stepper movement doesn't start before nominal start time
@@ -505,11 +551,16 @@ class ToolHead:
         estimated_print_time = self.mcu.estimated_print_time(eventtime)
         extruder = self.extra_axes[0]
         res = dict(self.kin.get_status(eventtime))
+        # Expose only 4 elements [x,y,z,e] via Coord for upstream compatibility
+        if len(self.commanded_pos) >= 7:
+            api_pos = [self.commanded_pos[0], self.commanded_pos[1], self.commanded_pos[2], self.commanded_pos[6]]
+        else:
+            api_pos = self.commanded_pos
         res.update({ 'print_time': print_time,
                      'stalls': self.print_stall,
                      'estimated_print_time': estimated_print_time,
                      'extruder': extruder.get_name(),
-                     'position': self.Coord(self.commanded_pos),
+                     'position': self.Coord(api_pos),
                      'max_velocity': self.max_velocity,
                      'max_accel': self.max_accel,
                      'minimum_cruise_ratio': self.min_cruise_ratio,

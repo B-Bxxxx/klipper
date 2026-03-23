@@ -101,7 +101,7 @@ class DualCarriages:
     def toggle_active_dc_rail(self, target_dc):
         toolhead = self.printer.lookup_object('toolhead')
         toolhead.flush_step_generation()
-        pos = toolhead.get_position()
+        pos = toolhead.get_internal_position()
         kin = toolhead.get_kinematics()
         axis = target_dc.axis
         for dc in self.dc_rails.values():
@@ -138,7 +138,7 @@ class DualCarriages:
                            for i, dc in enumerate(self.dc_rails.values())})
         return status
     def get_kin_range(self, toolhead, axis):
-        pos = toolhead.get_position()
+        pos = toolhead.get_internal_position()
         axis_pos = pos[axis]
         range_min, range_max = -1e10, 1e10
         for carriage in self.dc_rails.values():
@@ -227,11 +227,11 @@ class DualCarriages:
         kin = toolhead.get_kinematics()
         axis = dc.axis
         if mode == INACTIVE:
-            dc.inactivate(toolhead.get_position())
+            dc.inactivate(toolhead.get_internal_position())
         elif mode == PRIMARY:
             self.toggle_active_dc_rail(dc)
         else:
-            dc.activate(mode, toolhead.get_position())
+            dc.activate(mode, toolhead.get_internal_position())
         kin.update_limits(axis, self.get_kin_range(toolhead, axis))
     def _handle_ready(self):
         for dc_rail in self.dc_rails.values():
@@ -284,7 +284,7 @@ class DualCarriages:
         state_name = gcmd.get('NAME', 'default')
         self.saved_states[state_name] = self.save_dual_carriage_state()
     def save_dual_carriage_state(self):
-        pos = self.printer.lookup_object('toolhead').get_position()
+        pos = self.printer.lookup_object('toolhead').get_internal_position()
         return {'carriage_modes': {dc.get_name() : dc.mode
                                    for dc in self.dc_rails.values()},
                 'carriage_positions': {dc.get_name() : dc.get_axis_position(pos)
@@ -303,7 +303,7 @@ class DualCarriages:
     def restore_dual_carriage_state(self, saved_state, move, move_speed=0.):
         toolhead = self.printer.lookup_object('toolhead')
         toolhead.flush_step_generation()
-        move_pos = list(toolhead.get_position())
+        move_pos = list(toolhead.get_internal_position())
         dcs = list(self.dc_rails.values())
         if move:
             homing_speed = 99999999.
@@ -312,7 +312,7 @@ class DualCarriages:
             for dc in dcs:
                 self.toggle_active_dc_rail(dc)
                 homing_speed = min(homing_speed, dc.rail.homing_speed)
-                cur_pos.append(toolhead.get_position())
+                cur_pos.append(toolhead.get_internal_position())
             dl = [carriage_positions[dc.get_name()] - cur_pos[i][dc.axis]
                   for i, dc in enumerate(dcs)]
             for axis in self.axes:

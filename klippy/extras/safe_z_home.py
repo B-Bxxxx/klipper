@@ -35,7 +35,7 @@ class SafeZHoming:
             # Check if Z axis is homed and its last known position
             curtime = self.printer.get_reactor().monotonic()
             kin_status = toolhead.get_kinematics().get_status(curtime)
-            pos = toolhead.get_position()
+            pos = toolhead.get_internal_position()
 
             if 'z' not in kin_status['homed_axes']:
                 # Always perform the z_hop if the Z axis is not homed
@@ -50,17 +50,18 @@ class SafeZHoming:
                                      self.z_hop_speed)
 
         # Determine which axes we need to home
-        need_x, need_y, need_z = [gcmd.get(axis, None) is not None
-                                  for axis in "XYZ"]
-        if not need_x and not need_y and not need_z:
+        need_x, need_y, need_z, need_a, need_b, need_c = [gcmd.get(axis, None) is not None
+                                                          for axis in "XYZABC"]
+        if not any([need_x, need_y, need_z, need_a, need_b, need_c]):
             need_x = need_y = need_z = True
 
-        # Home XY axes if necessary
+        # Home non-Z axes if necessary
         new_params = {}
-        if need_x:
-            new_params['X'] = '0'
-        if need_y:
-            new_params['Y'] = '0'
+        if need_x: new_params['X'] = '0'
+        if need_y: new_params['Y'] = '0'
+        if need_a: new_params['A'] = '0'
+        if need_b: new_params['B'] = '0'
+        if need_c: new_params['C'] = '0'
         if new_params:
             g28_gcmd = self.gcode.create_gcode_command("G28", "G28", new_params)
             self.prev_G28(g28_gcmd)
@@ -74,14 +75,14 @@ class SafeZHoming:
                 'y' not in kin_status['homed_axes']):
                 raise gcmd.error("Must home X and Y axes first")
             # Move to safe XY homing position
-            prevpos = toolhead.get_position()
+            prevpos = toolhead.get_internal_position()
             toolhead.manual_move([self.home_x_pos, self.home_y_pos], self.speed)
             # Home Z
             g28_gcmd = self.gcode.create_gcode_command("G28", "G28", {'Z': '0'})
             self.prev_G28(g28_gcmd)
             # Perform Z Hop again for pressure-based probes
             if self.z_hop:
-                pos = toolhead.get_position()
+                pos = toolhead.get_internal_position()
                 if pos[2] < self.z_hop:
                     toolhead.manual_move([None, None, self.z_hop],
                                          self.z_hop_speed)

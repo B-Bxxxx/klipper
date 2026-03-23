@@ -25,7 +25,7 @@ class HomingOverride:
 
         # if no axis is given as parameter we assume the override
         no_axis = True
-        for axis in 'XYZ':
+        for axis in 'XYZABC':
             if gcmd.get(axis, None) is not None:
                 no_axis = False
                 break
@@ -45,7 +45,7 @@ class HomingOverride:
 
         # Calculate forced position (if configured)
         toolhead = self.printer.lookup_object('toolhead')
-        pos = toolhead.get_position()
+        pos = toolhead.get_internal_position()
         homing_axes = ""
         for axis, loc in enumerate(self.start_pos):
             if loc is not None:

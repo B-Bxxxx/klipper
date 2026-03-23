@@ -93,11 +93,22 @@ class ExcludeObject:
         return offset
 
     def get_position(self):
-        pos = self.next_transform.get_position()
+        if hasattr(self.next_transform, 'get_internal_position'):
+            pos = self.next_transform.get_internal_position()
+        else:
+            pos = self.next_transform.get_position()
+
         offset = self._get_extrusion_offsets(len(pos))
+        # Ensure last_position can hold the returned position length
+        if len(self.last_position) < len(pos):
+            self.last_position.extend([0.] * (len(pos) - len(self.last_position)))
+
         for i in range(len(pos)):
             self.last_position[i] = pos[i] + offset[i]
         return list(self.last_position)
+
+    def get_internal_position(self):
+        return self.get_position()
 
     def _normal_move(self, newpos, speed):
         offset = self._get_extrusion_offsets(len(newpos))

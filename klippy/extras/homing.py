@@ -53,10 +53,19 @@ class HomingMove:
     def get_mcu_endstops(self):
         return [es for es, name in self.endstops]
     def _calc_endstop_rate(self, mcu_endstop, movepos, speed):
-        startpos = self.toolhead.get_position()
-        axes_d = [mp - sp for mp, sp in zip(movepos, startpos)]
-        move_d = math.sqrt(sum([d*d for d in axes_d[:3]]))
-        move_t = move_d / speed
+        startpos = self.toolhead.get_internal_position() # This returns the 4-element upstream api array! Wait, no, we should check what we need to get... wait, if `get_position` returns 4 items, but we need 7 internally?
+        # Actually, let's use get_internal_position if available to avoid length mismatch.
+        if hasattr(self.toolhead, 'get_internal_position'):
+            startpos = self.toolhead.get_internal_position()
+
+        # Pad movepos if it's shorter than startpos
+        mp = list(movepos)
+        while len(mp) < len(startpos):
+            mp.append(startpos[len(mp)])
+
+        axes_d = [p1 - p2 for p1, p2 in zip(mp, startpos)]
+        move_d = math.sqrt(sum([d*d for d in axes_d[:6]]))
+        move_t = move_d / speed if move_d else 0.001
         max_steps = max([(abs(s.calc_position_from_coord(startpos)
                               - s.calc_position_from_coord(movepos))
                           / s.get_step_dist())
@@ -70,10 +79,13 @@ class HomingMove:
         for stepper in kin.get_steppers():
             sname = stepper.get_name()
             kin_spos[sname] += offsets.get(sname, 0) * stepper.get_step_dist()
-        thpos = self.toolhead.get_position()
+        thpos = self.toolhead.get_internal_position()
+        if hasattr(self.toolhead, 'get_internal_position'):
+            thpos = self.toolhead.get_internal_position()
         cpos = kin.calc_position(kin_spos)
+        cl = len(cpos)
         return [cp if cp is not None else tp
-                for cp, tp in zip(cpos, thpos[:3])] + thpos[3:]
+                for cp, tp in zip(cpos, thpos[:cl])] + thpos[cl:]
     def homing_move(self, movepos, speed, probe_pos=False,
                     triggered=True, check_triggered=True):
         # Notify start of homing/probing move
@@ -178,7 +190,9 @@ class Homing:
         self.adjust_pos[stepper_name] = adjustment
     def _fill_coord(self, coord):
         # Fill in any None entries in 'coord' with current toolhead position
-        thcoord = list(self.toolhead.get_position())
+        thcoord = list(self.toolhead.get_internal_position())
+        if len(thcoord) < len(coord):
+            thcoord += [0.] * (len(coord) - len(thcoord))
         for i in range(len(coord)):
             if coord[i] is not None:
                 thcoord[i] = coord[i]
@@ -189,8 +203,8 @@ class Homing:
         # Notify of upcoming homing operation
         self.printer.send_event("homing:home_rails_begin", self, rails)
         # Alter kinematics class to think printer is at forcepos
-        force_axes = [axis for axis in range(3) if forcepos[axis] is not None]
-        homing_axes = "".join(["xyz"[i] for i in force_axes])
+        force_axes = [axis for axis in range(6) if axis < len(forcepos) and forcepos[axis] is not None]
+        homing_axes = "".join(["xyzabc"[i] for i in force_axes])
         startpos = self._fill_coord(forcepos)
         homepos = self._fill_coord(movepos)
         self.toolhead.set_position(startpos, homing_axes=homing_axes)
@@ -205,8 +219,8 @@ class Homing:
             startpos = self._fill_coord(forcepos)
             homepos = self._fill_coord(movepos)
             axes_d = [hp - sp for hp, sp in zip(homepos, startpos)]
-            move_d = math.sqrt(sum([d*d for d in axes_d[:3]]))
-            retract_r = min(1., hi.retract_dist / move_d)
+            move_d = math.sqrt(sum([d*d for d in axes_d[:6]]))
+            retract_r = min(1., hi.retract_dist / move_d) if move_d else 0.
             retractpos = [hp - ad * retract_r
                           for hp, ad in zip(homepos, axes_d)]
             self.toolhead.move(retractpos, hi.retract_speed)
@@ -229,7 +243,9 @@ class Homing:
         if any(self.adjust_pos.values()):
             # Apply any homing offsets
             kin = self.toolhead.get_kinematics()
-            homepos = self.toolhead.get_position()
+            homepos = list(self.toolhead.get_internal_position())
+            if hasattr(self.toolhead, 'get_internal_position'):
+                homepos = list(self.toolhead.get_internal_position())
             kin_spos = {s.get_name(): (s.get_commanded_position()
                                        + self.adjust_pos.get(s.get_name(), 0.))
                         for s in kin.get_steppers()}
@@ -238,7 +254,7 @@ class Homing:
                 if newpos[axis] is None:
                     raise self.printer.command_error(
                             "Cannot determine position of toolhead on "
-                            "axis %s after homing" % "xyz"[axis])
+                            "axis %s after homing" % "xyzabc"[axis])
                 homepos[axis] = newpos[axis]
             self.toolhead.set_position(homepos)
 
@@ -278,7 +294,7 @@ class PrinterHoming:
     def cmd_G28(self, gcmd):
         # Move to origin
         axes = []
-        for pos, axis in enumerate('XYZ'):
+        for pos, axis in enumerate('XYZABC'):
             if gcmd.get(axis, None) is not None:
                 axes.append(pos)
         if not axes:

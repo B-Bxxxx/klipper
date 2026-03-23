@@ -393,7 +393,7 @@ class GenericCartesianKinematics:
             stepper.update_kin_coeffs(old_kin_coeffs)
             raise gcmd.error("SET_STEPPER_CARRIAGES cannot add or remove "
                              "carriages that the stepper controls")
-        pos = toolhead.get_position()
+        pos = toolhead.get_internal_position()
         stepper.set_position(pos)
         if not validate:
             return

@@ -182,11 +182,14 @@ class BedMesh:
         # Return last, non-transformed position
         if self.z_mesh is None:
             # No mesh calibrated, so send toolhead position
-            self.last_position[:] = self.toolhead.get_position()
+            pos = self.toolhead.get_internal_position()
+            if len(self.last_position) < len(pos):
+                self.last_position.extend([0.] * (len(pos) - len(self.last_position)))
+            self.last_position[:] = pos
             self.last_position[2] -= self.fade_target
         else:
             # return current position minus the current z-adjustment
-            cur_pos = self.toolhead.get_position()
+            cur_pos = self.toolhead.get_internal_position()
             x, y, z = cur_pos[:3]
             max_adj = self.z_mesh.calc_z(x, y)
             factor = 1.
@@ -203,8 +206,13 @@ class BedMesh:
                           (self.fade_dist - z_adj))
                 factor = constrain(factor, 0., 1.)
             final_z_adj = factor * z_adj + self.fade_target
+            if len(self.last_position) < len(cur_pos):
+                self.last_position.extend([0.] * (len(cur_pos) - len(self.last_position)))
             self.last_position[:] = [x, y, z - final_z_adj] + cur_pos[3:]
         return list(self.last_position)
+
+    def get_internal_position(self):
+        return self.get_position()
     def move(self, newpos, speed):
         factor = self.get_z_factor(newpos[2])
         if self.z_mesh is None or not factor:
@@ -1228,7 +1236,7 @@ class RapidScanHelper:
         # If the nozzle is below scan height raise the tool
         toolhead = self.printer.lookup_object("toolhead")
         pprobe = self.printer.lookup_object("probe")
-        cur_pos = toolhead.get_position()
+        cur_pos = toolhead.get_internal_position()
         if cur_pos[2] >= scan_height:
             return
         pparams = pprobe.get_probe_params(gcmd)
@@ -1240,7 +1248,7 @@ class RapidScanHelper:
         time_window = gcmd.get_float("SAMPLE_TIME")
         toolhead = self.printer.lookup_object("toolhead")
         pprobe = self.printer.lookup_object("probe")
-        cur_pos = toolhead.get_position()
+        cur_pos = toolhead.get_internal_position()
         pparams = pprobe.get_probe_params(gcmd)
         lift_speed = pparams["lift_speed"]
         probe_speed = pparams["probe_speed"]

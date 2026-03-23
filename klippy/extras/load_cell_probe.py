@@ -339,7 +339,7 @@ class LoadCellProbingMove:
         self._pause_and_tare(gcmd)
         # get params for the homing move
         toolhead = self._printer.lookup_object('toolhead')
-        pos = toolhead.get_position()
+        pos = toolhead.get_internal_position()
         pos[2] = self._z_min_position
         speed = self._param_helper.get_probe_params(gcmd)['probe_speed']
         phoming = self._printer.lookup_object('homing')

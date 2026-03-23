@@ -18,7 +18,21 @@ class Coord(tuple):
     x = property(operator.itemgetter(0))
     y = property(operator.itemgetter(1))
     z = property(operator.itemgetter(2))
-    e = property(operator.itemgetter(3))
+
+    # Optional extensions for a, b, c, e if a 7-element tuple is provided
+    # Fallback to 0.0 if not present to maintain downstream compatibility
+    @property
+    def a(self):
+        return self[3] if len(self) >= 7 else 0.0
+    @property
+    def b(self):
+        return self[4] if len(self) >= 7 else 0.0
+    @property
+    def c(self):
+        return self[5] if len(self) >= 7 else 0.0
+    @property
+    def e(self):
+        return self[6] if len(self) >= 7 else self[3]
 
 # Class for handling gcode command parameters (gcmd)
 class GCodeCommand:

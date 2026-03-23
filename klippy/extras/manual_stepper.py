@@ -59,7 +59,7 @@ class ManualStepper:
         toolhead = self.printer.lookup_object('toolhead')
         toolhead.flush_step_generation()
         self.commanded_pos = setpos
-        self.rail.set_position([self.commanded_pos, 0., 0.])
+        self.rail.set_position([self.commanded_pos, 0., 0., 0., 0., 0.])
     def _submit_move(self, movetime, movepos, speed, accel):
         cp = self.commanded_pos
         dist = movepos - cp

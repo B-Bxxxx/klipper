@@ -30,6 +30,21 @@ class GCodeMove:
         self.base_position = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         self.last_position = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         self.homing_position = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+        # Continuous axes configurations
+        self.continuous_axes = {}
+        for axis, pos in {'A': 3, 'B': 4, 'C': 5}.items():
+            section_name = 'stepper_' + axis.lower()
+            if config.has_section(section_name):
+                section = config.getsection(section_name)
+                is_continuous = section.getboolean('continuous_axis', False)
+                if is_continuous:
+                    shortest_path = section.getboolean('shortest_path', False)
+                    period = section.getfloat('rotation_period', 360.0)
+                    self.continuous_axes[pos] = {
+                        'shortest_path': shortest_path,
+                        'period': period
+                    }
         self.axis_map = {'X':0, 'Y': 1, 'Z': 2, 'A': 3, 'B': 4, 'C': 5, 'E': 6}
         self.speed = 25.
         self.speed_factor = 1. / 60.
@@ -154,8 +169,13 @@ class GCodeMove:
                         # value relative to position of last move
                         self.last_position[pos] += v
                     else:
-                        # value relative to base coordinate position
-                        self.last_position[pos] = v + self.base_position[pos]
+                        # Apply shortest path for continuous axes
+                        target_v = v + self.base_position[pos]
+                        if pos in getattr(self, 'continuous_axes', {}) and self.continuous_axes[pos]['shortest_path']:
+                            period = self.continuous_axes[pos]['period']
+                            current_abs = self.last_position[pos]
+                            target_v = target_v + period * round((current_abs - target_v) / period)
+                        self.last_position[pos] = target_v
             if 'F' in params:
                 gcode_speed = float(params['F'])
                 if gcode_speed <= 0.:

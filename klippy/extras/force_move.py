@@ -118,22 +118,31 @@ class ForceMove:
     def cmd_SET_KINEMATIC_POSITION(self, gcmd):
         toolhead = self.printer.lookup_object('toolhead')
         toolhead.get_last_move_time()
-        curpos = toolhead.get_internal_position()
-        x = gcmd.get_float('X', curpos[0])
-        y = gcmd.get_float('Y', curpos[1])
-        z = gcmd.get_float('Z', curpos[2])
-        set_homed = gcmd.get('SET_HOMED', 'xyz').lower()
-        set_homed_axes = "".join([a for a in "xyz" if a in set_homed])
+        curpos = list(toolhead.get_internal_position())
+
+        axes_map = {'X': 0, 'Y': 1, 'Z': 2, 'A': 3, 'B': 4, 'C': 5}
+        provided_axes = []
+        for axis, idx in axes_map.items():
+            val = gcmd.get_float(axis, None)
+            if val is not None:
+                curpos[idx] = val
+                provided_axes.append(axis.lower())
+
+        provided_axes_str = "".join(provided_axes)
+
+        set_homed = gcmd.get('SET_HOMED', provided_axes_str).lower()
+        set_homed_axes = "".join([a for a in "xyzabc" if a in set_homed])
+
         if gcmd.get('CLEAR_HOMED', None) is None:
             # "CLEAR" is an alias for "CLEAR_HOMED"; should deprecate
             clear_homed = gcmd.get('CLEAR', '').lower()
         else:
             clear_homed = gcmd.get('CLEAR_HOMED', '').lower()
-        clear_homed_axes = "".join([a for a in "xyz" if a in clear_homed])
-        logging.info("SET_KINEMATIC_POSITION pos=%.3f,%.3f,%.3f"
-                     " set_homed=%s clear_homed=%s",
-                     x, y, z, set_homed_axes, clear_homed_axes)
-        toolhead.set_position([x, y, z], homing_axes=set_homed_axes)
+        clear_homed_axes = "".join([a for a in "xyzabc" if a in clear_homed])
+
+        logging.info("SET_KINEMATIC_POSITION pos=%s set_homed=%s clear_homed=%s",
+                     ",".join(["%.3f" % p for p in curpos]), set_homed_axes, clear_homed_axes)
+        toolhead.set_position(curpos, homing_axes=set_homed_axes)
         toolhead.get_kinematics().clear_homing_state(clear_homed_axes)
 
 def load_config(config):
